@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   Shield,
   Loader2,
@@ -331,12 +332,12 @@ export default function AdminPage() {
               </p>
             </div>
           </div>
-          <a
+          <Link
             href="/"
             className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
           >
             返回首页
-          </a>
+          </Link>
         </div>
 
         {/* Loading */}

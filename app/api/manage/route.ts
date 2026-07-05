@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBackendDb } from "@/lib/backend";
 import { extractToken, authenticateToken, checkRateLimit } from "@/lib/auth";
 
+export const dynamic = "force-dynamic";
+
 function getClientIp(request: NextRequest): string {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
 }

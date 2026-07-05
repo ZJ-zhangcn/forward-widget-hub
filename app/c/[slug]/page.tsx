@@ -1,20 +1,29 @@
 import { getBackendDb } from "@/lib/backend";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { APP_NAME } from "@/lib/constants";
 import { CopyButton } from "./copy-button";
+
+export const dynamic = "force-dynamic";
 
 interface Module {
   id: string; filename: string; title: string; description: string;
   version: string; author: string; file_size: number; is_encrypted: number;
 }
 
+interface Collection {
+  id: string;
+  title: string;
+  description: string | null;
+}
+
 export default async function CollectionPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const db = await getBackendDb();
 
-  const collection = await db.prepare("SELECT * FROM collections WHERE slug = ?").get(slug) as Record<string, any> | undefined;
+  const collection = await db.prepare("SELECT id, title, description FROM collections WHERE slug = ?").get(slug) as Collection | undefined;
   if (!collection) notFound();
 
   const modules = await db.prepare("SELECT * FROM modules WHERE collection_id = ? ORDER BY created_at").all(collection.id) as Module[];
@@ -27,7 +36,7 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
     <main className="min-h-screen">
       <div className="mx-auto max-w-2xl px-4 py-16">
         <div className="mb-8">
-          <a href="/" className="text-sm text-muted-foreground hover:text-foreground">&larr; {APP_NAME}</a>
+          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">&larr; {APP_NAME}</Link>
         </div>
         <div className="space-y-6">
           <div>

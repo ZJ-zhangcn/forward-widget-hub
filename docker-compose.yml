@@ -7,6 +7,8 @@ services:
       - ./data:/data
     environment:
       - SITE_URL=http://localhost:3000
+      # Optional: public collection slugs rendered on the homepage, comma-separated.
+      - PUBLIC_COLLECTION_SLUGS=r9Bh1TOUzm
       # Optional: protect upload/manage pages with a password.
       # - ACCESS_PASSWORD=change-me
       # Optional: single-user private mode. After password login on any device,

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBackendDb, getBackendStore } from "@/lib/backend";
 
+export const dynamic = "force-dynamic";
+
 interface ModuleRow {
   id: string; collection_id: string; filename: string; widget_id: string | null; title: string | null;
   description: string | null; version: string | null; author: string | null;

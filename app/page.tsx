@@ -120,6 +120,8 @@ export default function Home() {
   const [urlLoading, setUrlLoading] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
+  const [publicCollections, setPublicCollections] = useState<Collection[]>([]);
+  const [publicCollectionsLoading, setPublicCollectionsLoading] = useState(false);
   const [showTokenBanner, setShowTokenBanner] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -148,6 +150,18 @@ export default function Home() {
         setAuthState("need-password");
       }
     }).catch(() => setAuthState("authenticated"));
+  }, []);
+
+  useEffect(() => {
+    setPublicCollectionsLoading(true);
+    fetch("/api/public/collections", { cache: "no-store" })
+      .then((r) => r.ok ? r.json() : { collections: [] })
+      .then((data) => {
+        const nextCollections = Array.isArray(data.collections) ? data.collections : [];
+        setPublicCollections(nextCollections);
+      })
+      .catch(() => setPublicCollections([]))
+      .finally(() => setPublicCollectionsLoading(false));
   }, []);
 
   const handlePasswordSubmit = async () => {
@@ -571,39 +585,47 @@ export default function Home() {
 
   if (authState === "need-password") {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-slate-200 p-8 space-y-6">
-          <div className="text-center space-y-2">
-            <div className="mx-auto w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center">
-              <Lock className="w-6 h-6 text-indigo-600" />
-            </div>
-            <h1 className="text-xl font-bold text-slate-900">访问密码</h1>
-            <p className="text-sm text-slate-500">请输入密码以继续</p>
+      <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-8 font-sans">
+        <div className="max-w-4xl mx-auto space-y-8">
+          <div className="text-center space-y-2 pt-6">
+            <h1 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">Forward Widget Hub</h1>
+            <p className="text-sm text-slate-500">公开合集可直接查看与导入；上传和管理需要访问密码。</p>
           </div>
-          <div className="space-y-3">
-            <input
-              type="password"
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handlePasswordSubmit(); }}
-              placeholder="请输入密码"
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              autoFocus
-            />
-            {passwordError && (
-              <p className="text-sm text-red-500 flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5" />
-                {passwordError}
-              </p>
-            )}
-            <button
-              onClick={handlePasswordSubmit}
-              disabled={passwordLoading || !passwordInput.trim()}
-              className="w-full py-3 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              {passwordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-              确认
-            </button>
+
+          <PublicCollectionsPanel collections={publicCollections} loading={publicCollectionsLoading} />
+
+          <div className="w-full max-w-sm mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-8 space-y-6">
+            <div className="text-center space-y-2">
+              <div className="mx-auto w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center">
+                <Lock className="w-6 h-6 text-indigo-600" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900">管理入口</h2>
+              <p className="text-sm text-slate-500">请输入密码以上传或管理模块</p>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handlePasswordSubmit(); }}
+                placeholder="请输入密码"
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              {passwordError && (
+                <p className="text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {passwordError}
+                </p>
+              )}
+              <button
+                onClick={handlePasswordSubmit}
+                disabled={passwordLoading || !passwordInput.trim()}
+                className="w-full py-3 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {passwordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                进入管理
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -626,6 +648,8 @@ export default function Home() {
             文件以获取云端托管地址。系统会自动解析 .fwd 文件并替换其内部引用的依赖链接。
           </p>
         </div>
+
+        <PublicCollectionsPanel collections={publicCollections} loading={publicCollectionsLoading} />
 
         {/* Upload Area */}
         <div
@@ -783,6 +807,77 @@ export default function Home() {
         )}
       </div>
     </div>
+  );
+}
+
+function PublicCollectionsPanel({ collections, loading }: { collections: Collection[]; loading: boolean }) {
+  if (loading && collections.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-center text-sm text-slate-400">
+        <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+        正在加载公开合集…
+      </div>
+    );
+  }
+
+  if (collections.length === 0) return null;
+
+  return (
+    <section className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">公开合集</h2>
+          <p className="text-sm text-slate-500">换设备或清缓存后，也可以从这里直接导入 Forward App。</p>
+        </div>
+      </div>
+
+      {collections.map((collection) => (
+        <div key={collection.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/60 space-y-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-semibold text-slate-900 text-lg">{collection.title}</h3>
+                  <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full">
+                    {collection.modules.length} 个模块
+                  </span>
+                </div>
+                {collection.description && <p className="text-sm text-slate-500 mt-1">{collection.description}</p>}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <a
+                  href={collection.pageUrl}
+                  className="text-xs flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  打开页面
+                </a>
+                <CopyButton text={collection.fwdUrl} label="复制订阅" />
+              </div>
+            </div>
+            <div className="flex items-center bg-white border border-slate-200 rounded-md p-0.5">
+              <input type="text" readOnly value={collection.fwdUrl} className="bg-transparent text-xs font-mono text-slate-600 w-full focus:outline-none truncate px-2" />
+              <CopyButton text={collection.fwdUrl} label="复制" />
+            </div>
+          </div>
+          <div className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto">
+            {collection.modules.map((mod) => (
+              <div key={mod.id} className="px-6 py-3 flex items-start justify-between gap-3 hover:bg-slate-50/70 transition-colors">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm text-slate-800">{mod.title || mod.filename}</span>
+                    {mod.version && <span className="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{mod.version}</span>}
+                    {mod.is_encrypted ? <span className="text-[11px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100">加密</span> : null}
+                  </div>
+                  {mod.description && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{mod.description}</p>}
+                  {mod.author && <p className="text-[11px] text-slate-400 mt-1">by {mod.author}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </section>
   );
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, use } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useState } from "react";
@@ -33,7 +34,7 @@ export default function ManagePage({ params }: { params: Promise<{ token: string
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
           <p className="text-red-600 font-medium">{error}</p>
           <p className="text-sm text-slate-500">请确认管理链接是否正确。</p>
-          <a href="/" className="text-sm text-indigo-600 hover:underline">返回首页</a>
+          <Link href="/" className="text-sm text-indigo-600 hover:underline">返回首页</Link>
         </div>
       </div>
     );
