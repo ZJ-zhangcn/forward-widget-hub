@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBackendDb, getBackendStore } from "@/lib/backend";
 import { extractToken, authenticateToken, checkRateLimit } from "@/lib/auth";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 function getClientIp(request: NextRequest): string {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
   const db = await getBackendDb();
   const collection = await db.prepare("SELECT * FROM collections WHERE slug = ?").get(slug) as Record<string, unknown> | undefined;
   if (!collection) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (collection.visibility === "private" && !(await verifyAdmin(request))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const modules = await db.prepare(
     "SELECT id, filename, widget_id, title, description, version, author, file_size, is_encrypted FROM modules WHERE collection_id = ? ORDER BY created_at"
@@ -109,6 +113,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  await db.prepare("DELETE FROM module_versions WHERE collection_id = ?").run(collection.id);
   await db.prepare("DELETE FROM modules WHERE collection_id = ?").run(collection.id);
   await db.prepare("DELETE FROM collections WHERE id = ?").run(collection.id);
   const store = await getBackendStore();

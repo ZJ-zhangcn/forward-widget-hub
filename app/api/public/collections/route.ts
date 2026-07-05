@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
   const collectionRows = showAll
     ? await db.prepare(
-      "SELECT c.* FROM collections c WHERE EXISTS (SELECT 1 FROM modules m WHERE m.collection_id = c.id) ORDER BY c.updated_at DESC, c.created_at DESC"
+      "SELECT c.* FROM collections c WHERE COALESCE(c.visibility, 'public') = 'public' AND EXISTS (SELECT 1 FROM modules m WHERE m.collection_id = c.id) ORDER BY c.updated_at DESC, c.created_at DESC"
     ).all<Record<string, unknown>>()
     : await Promise.all(
       configuredSlugs.map((slug) =>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBackendDb, getBackendStore } from "@/lib/backend";
 import { verifyAdmin } from "@/lib/admin-auth";
+import { normalizeVisibility } from "@/lib/policy";
 
 function normalizeOptional(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -22,6 +23,7 @@ export async function PATCH(
     slug?: string;
     icon_url?: string;
     source_url?: string;
+    visibility?: string;
   } | null;
 
   if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
@@ -31,6 +33,7 @@ export async function PATCH(
   const description = typeof body.description === "string" ? body.description.trim() : "";
   const iconUrl = normalizeOptional(body.icon_url);
   const sourceUrl = normalizeOptional(body.source_url);
+  const visibility = normalizeVisibility(body.visibility);
 
   if (!title) return NextResponse.json({ error: "Title required" }, { status: 400 });
   if (!slug) return NextResponse.json({ error: "Slug required" }, { status: 400 });
@@ -52,10 +55,10 @@ export async function PATCH(
   if (duplicate) return NextResponse.json({ error: "Slug already exists" }, { status: 409 });
 
   await db.prepare(
-    "UPDATE collections SET title = ?, description = ?, slug = ?, icon_url = ?, source_url = ?, updated_at = unixepoch() WHERE id = ?"
-  ).run(title, description, slug, iconUrl || "", sourceUrl, id);
+    "UPDATE collections SET title = ?, description = ?, slug = ?, icon_url = ?, source_url = ?, visibility = ?, updated_at = unixepoch() WHERE id = ?"
+  ).run(title, description, slug, iconUrl || "", sourceUrl, visibility, id);
 
-  return NextResponse.json({ success: true, collection: { id, title, description, slug, icon_url: iconUrl || "", source_url: sourceUrl } });
+  return NextResponse.json({ success: true, collection: { id, title, description, slug, icon_url: iconUrl || "", source_url: sourceUrl, visibility } });
 }
 
 export async function DELETE(
@@ -76,6 +79,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  await db.prepare("DELETE FROM module_versions WHERE collection_id = ?").run(id);
   await db.prepare("DELETE FROM modules WHERE collection_id = ?").run(id);
   await db.prepare("DELETE FROM collections WHERE id = ?").run(id);
   const store = await getBackendStore();

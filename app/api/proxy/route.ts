@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAccessPasswordConfigured, requestHasValidAccessCookie } from "@/lib/access-password";
+import { assertAllowedContentLength, getMaxRemoteBytes, validateRemoteFetchUrl } from "@/lib/url-safety";
 
 export async function GET(req: NextRequest) {
-  const url = req.nextUrl.searchParams.get("url");
-  if (!url) {
+  if (isAccessPasswordConfigured() && !(await requestHasValidAccessCookie(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rawUrl = req.nextUrl.searchParams.get("url");
+  if (!rawUrl) {
     return NextResponse.json({ error: "Missing url parameter" }, { status: 400 });
   }
 
+  let url: URL;
   try {
-    new URL(url);
-  } catch {
-    return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
+    url = validateRemoteFetchUrl(rawUrl);
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
   }
 
   try {
@@ -25,8 +32,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    assertAllowedContentLength(res.headers.get("content-length"), getMaxRemoteBytes());
     const contentType = res.headers.get("content-type") || "application/octet-stream";
     const body = await res.arrayBuffer();
+    if (body.byteLength > getMaxRemoteBytes()) {
+      return NextResponse.json({ error: "Remote file exceeds size limit" }, { status: 413 });
+    }
 
     return new NextResponse(body, {
       headers: {

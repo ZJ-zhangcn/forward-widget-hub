@@ -4,6 +4,9 @@ import { getBackendDb, getBackendStore } from "@/lib/backend";
 import { generateToken, hashToken, getTokenPrefix } from "@/lib/auth";
 import { ensureSingleUser, getSingleUserToken } from "@/lib/single-user";
 import { parseWidgetMetadata, isEncrypted } from "@/lib/parser";
+import { assertAllowedContentLength, getMaxRemoteBytes, validateRemoteFetchUrl } from "@/lib/url-safety";
+import { isAccessPasswordConfigured, requestHasValidAccessCookie } from "@/lib/access-password";
+import { canAddModules, canCreateCollection, normalizeVisibility } from "@/lib/policy";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const DOWNLOAD_TIMEOUT = 30_000; // 30s per remote file
@@ -27,15 +30,17 @@ interface FwdIndex {
 
 type ModuleInfo = { id: string; filename: string; title: string; version?: string; encrypted: boolean; source_url?: string };
 
-async function downloadRemoteJs(url: string): Promise<{ buffer: Buffer; filename: string }> {
+async function downloadRemoteJs(rawUrl: string): Promise<{ buffer: Buffer; filename: string }> {
+  const url = validateRemoteFetchUrl(rawUrl);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT);
   try {
     const res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": "Forward" } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    assertAllowedContentLength(res.headers.get("content-length"), getMaxRemoteBytes());
     const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > MAX_FILE_SIZE) throw new Error("Remote file exceeds 5MB limit");
-    const urlPath = new URL(url).pathname;
+    if (buf.length > getMaxRemoteBytes()) throw new Error("Remote file exceeds size limit");
+    const urlPath = url.pathname;
     let filename = urlPath.split("/").pop() || "widget.js";
     if (!filename.endsWith(".js")) filename += ".js";
     return { buffer: buf, filename };
@@ -57,15 +62,17 @@ function parseFwdFile(content: string): FwdIndex {
   return parsed as FwdIndex;
 }
 
-async function downloadRemoteFile(url: string): Promise<{ buffer: Buffer; filename: string; isFwd: boolean }> {
+async function downloadRemoteFile(rawUrl: string): Promise<{ buffer: Buffer; filename: string; isFwd: boolean }> {
+  const url = validateRemoteFetchUrl(rawUrl);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT);
   try {
     const res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": "Forward" } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    assertAllowedContentLength(res.headers.get("content-length"), getMaxRemoteBytes());
     const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > MAX_FILE_SIZE) throw new Error("Remote file exceeds 5MB limit");
-    const urlPath = new URL(url).pathname;
+    if (buf.length > getMaxRemoteBytes()) throw new Error("Remote file exceeds size limit");
+    const urlPath = url.pathname;
     let filename = urlPath.split("/").pop() || "widget.js";
     const isFwd = filename.endsWith(".fwd") || (() => {
       try { const j = JSON.parse(buf.toString("utf8")); return Array.isArray(j.widgets); } catch { return false; }
@@ -112,8 +119,10 @@ async function downloadAndStoreIcon(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
     try {
-      const res = await fetch(iconUrl, { signal: controller.signal, headers: { "User-Agent": "Forward" } });
+      const safeIconUrl = validateRemoteFetchUrl(iconUrl);
+      const res = await fetch(safeIconUrl, { signal: controller.signal, headers: { "User-Agent": "Forward" } });
       if (!res.ok) return iconUrl;
+      assertAllowedContentLength(res.headers.get("content-length"), getMaxRemoteBytes());
       const contentType = res.headers.get("content-type") || "image/jpeg";
       const ext = contentType.includes("png") ? "png"
         : contentType.includes("gif") ? "gif"
@@ -172,6 +181,18 @@ async function downloadAndStoreWidget(
   };
 }
 
+async function ensureCanCreateCollection(db: Awaited<ReturnType<typeof getBackendDb>>, userId: string) {
+  const row = await db.prepare("SELECT COUNT(*) AS count FROM collections WHERE user_id = ?").get(userId) as { count: number } | undefined;
+  const allowed = canCreateCollection(Number(row?.count || 0));
+  if (!allowed.allowed) throw new Error(allowed.reason || "Collection quota exceeded");
+}
+
+async function ensureCanAddModules(db: Awaited<ReturnType<typeof getBackendDb>>, collectionId: string, addingCount: number) {
+  const row = await db.prepare("SELECT COUNT(*) AS count FROM modules WHERE collection_id = ?").get(collectionId) as { count: number } | undefined;
+  const allowed = canAddModules(Number(row?.count || 0), addingCount);
+  if (!allowed.allowed) throw new Error(allowed.reason || "Module quota exceeded");
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -181,6 +202,7 @@ export async function POST(request: NextRequest) {
     const collectionTitle = (formData.get("title") as string) || "My Widgets";
     const collectionDesc = (formData.get("description") as string) || "";
     const collectionIcon = (formData.get("icon") as string) || "";
+    const visibility = normalizeVisibility(formData.get("visibility"));
     const widgetMetaRaw = formData.get("widget_meta") as string | null;
     const sourceUrl = formData.get("source_url") as string | null;
     const syncMode = formData.get("sync") === "true";
@@ -209,8 +231,12 @@ export async function POST(request: NextRequest) {
 
     const db = await getBackendDb();
     const store = await getBackendStore();
+    const hasAccessCookie = await requestHasValidAccessCookie(request);
+    if (isAccessPasswordConfigured() && !token && !hasAccessCookie) {
+      return NextResponse.json({ error: "Access password required" }, { status: 401 });
+    }
     const singleUserToken = getSingleUserToken();
-    if (!token && singleUserToken) {
+    if (!token && singleUserToken && hasAccessCookie) {
       await ensureSingleUser(singleUserToken);
       token = singleUserToken;
     }
@@ -258,12 +284,13 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: `Invalid .fwd content: ${(e as Error).message}` }, { status: 400 });
         }
 
+        await ensureCanCreateCollection(db, userId);
         const collectionId = nanoid();
         const slug = nanoid(10);
         const iconUrl = fwd.icon ? await downloadAndStoreIcon(fwd.icon, collectionId, slug, siteUrl, store) : "";
         await db.prepare(
-          "INSERT INTO collections (id, user_id, slug, title, description, icon_url, source_url) VALUES (?, ?, ?, ?, ?, ?, ?)"
-        ).run(collectionId, userId, slug, fwd.title || downloaded.filename, fwd.description || "", iconUrl, remoteUrl);
+          "INSERT INTO collections (id, user_id, slug, title, description, icon_url, source_url, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        ).run(collectionId, userId, slug, fwd.title || downloaded.filename, fwd.description || "", iconUrl, remoteUrl, visibility);
         const fwdUrl = `${siteUrl}/api/collections/${slug}/fwd`;
 
         return createProgressStream(async (send) => {
@@ -283,9 +310,10 @@ export async function POST(request: NextRequest) {
       const { buffer, filename } = downloaded;
       const encrypted = isEncrypted(buffer);
       const meta = encrypted ? null : parseWidgetMetadata(buffer.toString("utf8"));
+      await ensureCanCreateCollection(db, userId);
       const collectionId = nanoid();
       const slug = nanoid(10);
-      await db.prepare("INSERT INTO collections (id, user_id, slug, title, description) VALUES (?, ?, ?, ?, ?)").run(collectionId, userId, slug, meta?.title || filename.replace(".js", ""), meta?.description || "");
+      await db.prepare("INSERT INTO collections (id, user_id, slug, title, description, visibility) VALUES (?, ?, ?, ?, ?, ?)").run(collectionId, userId, slug, meta?.title || filename.replace(".js", ""), meta?.description || "", visibility);
       const fwdUrl = `${siteUrl}/api/collections/${slug}/fwd`;
       const moduleId = nanoid();
       await db.prepare(
@@ -328,12 +356,13 @@ export async function POST(request: NextRequest) {
         let currentWidget = 0;
 
         for (const { file, fwd } of parsedFwds) {
+          await ensureCanCreateCollection(db, userId);
           const collectionId = nanoid();
           const slug = nanoid(10);
           const iconUrl = fwd.icon ? await downloadAndStoreIcon(fwd.icon, collectionId, slug, siteUrl, store) : "";
           await db.prepare(
-            "INSERT INTO collections (id, user_id, slug, title, description, icon_url, source_url) VALUES (?, ?, ?, ?, ?, ?, ?)"
-          ).run(collectionId, userId, slug, fwd.title || file.name, fwd.description || "", iconUrl, sourceUrl || null);
+            "INSERT INTO collections (id, user_id, slug, title, description, icon_url, source_url, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+          ).run(collectionId, userId, slug, fwd.title || file.name, fwd.description || "", iconUrl, sourceUrl || null, visibility);
           fwdUrl = `${siteUrl}/api/collections/${slug}/fwd`;
 
           for (const widget of fwd.widgets) {
@@ -353,10 +382,12 @@ export async function POST(request: NextRequest) {
             const col = await db.prepare("SELECT id, slug FROM collections WHERE id = ? AND user_id = ?").get(existingCollection, userId) as { id: string; slug: string } | undefined;
             if (!col) throw new Error("Collection not found or not owned");
             collectionId = col.id;
+            await ensureCanAddModules(db, collectionId, jsFiles.length);
           } else {
+            await ensureCanCreateCollection(db, userId);
             collectionId = nanoid();
             const slug = nanoid(10);
-            await db.prepare("INSERT INTO collections (id, user_id, slug, title, description) VALUES (?, ?, ?, ?, ?)").run(collectionId, userId, slug, collectionTitle, collectionDesc);
+            await db.prepare("INSERT INTO collections (id, user_id, slug, title, description, visibility) VALUES (?, ?, ?, ?, ?, ?)").run(collectionId, userId, slug, collectionTitle, collectionDesc, visibility);
           }
           for (let ji = 0; ji < jsFiles.length; ji++) {
             const file = jsFiles[ji];
@@ -395,6 +426,7 @@ export async function POST(request: NextRequest) {
 
       // Get existing modules for matching
       const existingModules = await db.prepare("SELECT id, filename, widget_id, source_url, oss_key FROM modules WHERE collection_id = ?").all(collectionId) as Array<{ id: string; filename: string; widget_id: string | null; source_url: string | null; oss_key: string | null }>;
+      await ensureCanAddModules(db, collectionId, Math.max(0, jsFiles.length - existingModules.length));
 
       const allModules: ModuleInfo[] = [];
       for (let i = 0; i < jsFiles.length; i++) {
@@ -470,10 +502,12 @@ export async function POST(request: NextRequest) {
       }
       collectionId = col.id;
       collectionSlug = col.slug;
+      await ensureCanAddModules(db, collectionId, jsFiles.length);
     } else {
+      await ensureCanCreateCollection(db, userId);
       collectionId = nanoid();
       collectionSlug = nanoid(10);
-      await db.prepare("INSERT INTO collections (id, user_id, slug, title, description, icon_url) VALUES (?, ?, ?, ?, ?, ?)").run(collectionId, userId, collectionSlug, collectionTitle, collectionDesc, collectionIcon);
+      await db.prepare("INSERT INTO collections (id, user_id, slug, title, description, icon_url, visibility) VALUES (?, ?, ?, ?, ?, ?, ?)").run(collectionId, userId, collectionSlug, collectionTitle, collectionDesc, collectionIcon, visibility);
     }
 
     for (let i = 0; i < jsFiles.length; i++) {

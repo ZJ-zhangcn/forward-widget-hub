@@ -1,6 +1,7 @@
 import type { Store } from "../backend";
 import fs from "fs";
 import path from "path";
+import { safeFilename } from "../file-safety";
 
 export function createLocalStore(): Store {
   const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
@@ -12,15 +13,16 @@ export function createLocalStore(): Store {
     async save(collectionId, filename, content) {
       const dir = path.join(MODULES_DIR, collectionId);
       fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(path.join(dir, filename), content);
+      const safeName = safeFilename(filename);
+      fs.writeFileSync(path.join(dir, safeName), content);
     },
     async read(collectionId, filename) {
-      const filePath = path.join(MODULES_DIR, collectionId, filename);
+      const filePath = path.join(MODULES_DIR, collectionId, safeFilename(filename));
       if (!fs.existsSync(filePath)) return null;
       return fs.readFileSync(filePath);
     },
     async remove(collectionId, filename) {
-      const filePath = path.join(MODULES_DIR, collectionId, filename);
+      const filePath = path.join(MODULES_DIR, collectionId, safeFilename(filename));
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     },
     async removeCollection(collectionId) {

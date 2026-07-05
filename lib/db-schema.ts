@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS collections (
   description TEXT DEFAULT '',
   icon_url TEXT DEFAULT '',
   source_url TEXT,
+  visibility TEXT DEFAULT 'public',
   created_at INTEGER DEFAULT (unixepoch()),
   updated_at INTEGER DEFAULT (unixepoch()),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -43,6 +44,22 @@ CREATE INDEX IF NOT EXISTS idx_collections_user_id ON collections(user_id);
 CREATE INDEX IF NOT EXISTS idx_collections_slug ON collections(slug);
 CREATE INDEX IF NOT EXISTS idx_modules_collection_id ON modules(collection_id);
 CREATE INDEX IF NOT EXISTS idx_users_token_prefix ON users(token_prefix);
+
+CREATE TABLE IF NOT EXISTS module_versions (
+  id TEXT PRIMARY KEY,
+  module_id TEXT NOT NULL,
+  collection_id TEXT NOT NULL,
+  filename TEXT NOT NULL,
+  title TEXT,
+  version TEXT,
+  file_size INTEGER DEFAULT 0,
+  content_base64 TEXT NOT NULL,
+  created_at INTEGER DEFAULT (unixepoch()),
+  FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE,
+  FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_module_versions_module ON module_versions(module_id, created_at DESC);
 `;
 
 // Migration for existing databases that lack the required_version column
@@ -51,6 +68,9 @@ export const MIGRATIONS = [
   `ALTER TABLE collections ADD COLUMN source_url TEXT;`,
   `ALTER TABLE modules ADD COLUMN source_url TEXT;`,
   `ALTER TABLE modules ADD COLUMN oss_key TEXT;`,
+  `ALTER TABLE collections ADD COLUMN visibility TEXT DEFAULT 'public';`,
+  `CREATE TABLE IF NOT EXISTS module_versions (id TEXT PRIMARY KEY, module_id TEXT NOT NULL, collection_id TEXT NOT NULL, filename TEXT NOT NULL, title TEXT, version TEXT, file_size INTEGER DEFAULT 0, content_base64 TEXT NOT NULL, created_at INTEGER DEFAULT (unixepoch()), FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE, FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE);`,
+  `CREATE INDEX IF NOT EXISTS idx_module_versions_module ON module_versions(module_id, created_at DESC);`,
 ];
 
 export function applyMigrations(exec: (sql: string) => void) {

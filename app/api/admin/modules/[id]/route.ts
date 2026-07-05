@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBackendDb, getBackendStore } from "@/lib/backend";
 import { verifyAdmin } from "@/lib/admin-auth";
 import { parseWidgetMetadata } from "@/lib/parser";
+import { nanoid } from "nanoid";
 
 export async function PUT(
   request: NextRequest,
@@ -14,8 +15,8 @@ export async function PUT(
   const db = await getBackendDb();
 
   const mod = (await db
-    .prepare("SELECT id, collection_id, filename, oss_key FROM modules WHERE id = ?")
-    .get(id)) as { id: string; collection_id: string; filename: string; oss_key: string | null } | undefined;
+    .prepare("SELECT id, collection_id, filename, title, version, file_size, oss_key FROM modules WHERE id = ?")
+    .get(id)) as { id: string; collection_id: string; filename: string; title: string | null; version: string | null; file_size: number; oss_key: string | null } | undefined;
 
   if (!mod) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -25,6 +26,13 @@ export async function PUT(
 
   const buf = Buffer.from(await file.arrayBuffer());
   const store = await getBackendStore();
+  const previous = await store.read(mod.collection_id, mod.oss_key || mod.filename);
+  if (previous) {
+    await db.prepare(
+      `INSERT INTO module_versions (id, module_id, collection_id, filename, title, version, file_size, content_base64)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(nanoid(), mod.id, mod.collection_id, mod.filename, mod.title, mod.version, mod.file_size, previous.toString("base64"));
+  }
   const ossKey = await store.save(mod.collection_id, mod.filename, buf);
 
   const meta = parseWidgetMetadata(buf.toString("utf-8"));
@@ -53,6 +61,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  await db.prepare("DELETE FROM module_versions WHERE module_id = ?").run(id);
   await db.prepare("DELETE FROM modules WHERE id = ?").run(id);
   const store = await getBackendStore();
   await store.remove(mod.collection_id, mod.oss_key || mod.filename);

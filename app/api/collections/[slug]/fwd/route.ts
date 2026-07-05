@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBackendDb } from "@/lib/backend";
+import { resolveCollectionAlias } from "@/lib/aliases";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -20,39 +22,23 @@ export async function GET(
   // generated collection link cannot be imported.
   const { slug } = await params;
   const db = await getBackendDb();
-  const aliasOnlyMap: Record<string, string | undefined> = {
-    "jin-widgets-xvideos": "jin.forward.xvideos",
-    "jin-widgets-xvideos-raw": "jin.forward.xvideos",
-    "jin-widgets-xvideos-file": "jin.forward.xvideos",
-  };
-  const aliasOnlyLists: Record<string, string[] | undefined> = {
-    "jin-widgets-first5": ["jin.forward.91porna.v2", "jin.forward.123av", "jin.forward.badnews.dm.body", "jin.forward.beeg", "jin.forward.hanime2"],
-    "jin-widgets-last4": ["jin.forward.missav", "jin.forward.pornhub", "jin.forward.rou.video", "jin.forward.xvideos"],
-    "jin-widgets-pair-a": ["jin.forward.91porna.v2", "jin.forward.123av"],
-    "jin-widgets-pair-b": ["jin.forward.badnews.dm.body", "jin.forward.beeg"],
-    "jin-widgets-badnews": ["jin.forward.badnews.dm.body"],
-    "jin-widgets-beeg": ["jin.forward.beeg"],
-    "jin-widgets-beeg-xvideos": ["jin.forward.beeg", "jin.forward.xvideos"],
-    "jin-widgets-pair-c": ["jin.forward.hanime2", "jin.forward.missav"],
-    "jin-widgets-pair-d": ["jin.forward.pornhub", "jin.forward.rou.video"],
-    "jin-widgets-pair-e": ["jin.forward.xvideos"],
-    "jin-widgets-proxy-img": ["jin.forward.91porna.v2"],
-    "jin-widgets-proxy-hls": ["jin.forward.123av", "jin.forward.beeg", "jin.forward.missav", "jin.forward.rou.video"],
-    "jin-widgets-proxy-all": ["jin.forward.91porna.v2", "jin.forward.123av", "jin.forward.beeg", "jin.forward.missav", "jin.forward.rou.video"],
-  };
-  const isJinAlias = slug === "jin-widgets" || slug === "jin-widgets-safe" || aliasOnlyMap[slug] || aliasOnlyLists[slug];
-  const collectionSlug = isJinAlias ? "9gGwC_iYuq" : slug;
+  const alias = resolveCollectionAlias(slug);
+  const collectionSlug = alias?.targetSlug || slug;
   const collection = await db.prepare("SELECT * FROM collections WHERE slug = ?").get(collectionSlug) as Record<string, unknown> | undefined;
   if (!collection) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (collection.visibility === "private" && !(await verifyAdmin(request))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
-  const requestedSafe = request.nextUrl.searchParams.get("safe") === "1";
-  const requestedOnly = request.nextUrl.searchParams.get("only") || aliasOnlyMap[slug];
-  const requestedSkip = new Set(
-    (request.nextUrl.searchParams.get("skip") || "")
+  const requestedSafe = request.nextUrl.searchParams.get("safe") === "1" || alias?.safe === true;
+  const requestedOnly = request.nextUrl.searchParams.get("only") || alias?.only;
+  const requestedSkip = new Set([
+    ...(alias?.skip || []),
+    ...(request.nextUrl.searchParams.get("skip") || "")
       .split(",")
       .map((v) => v.trim())
-      .filter(Boolean)
-  );
+      .filter(Boolean),
+  ]);
 
   let modules = await db.prepare(
     "SELECT id, collection_id, filename, widget_id, title, description, version, author, required_version, file_size, updated_at, oss_key FROM modules WHERE collection_id = ? ORDER BY created_at"
@@ -61,7 +47,7 @@ export async function GET(
   if (requestedOnly) {
     modules = modules.filter((m) => m.widget_id === requestedOnly || m.id === requestedOnly || m.filename === requestedOnly);
   }
-  const aliasList = aliasOnlyLists[slug];
+  const aliasList = alias?.list;
   if (aliasList) {
     const allowed = new Set(aliasList);
     modules = modules.filter((m) => allowed.has(m.widget_id || "") || allowed.has(m.id) || allowed.has(m.filename));

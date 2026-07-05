@@ -70,38 +70,6 @@ async function fetchWithProxy(url: string): Promise<Response> {
   throw new Error(`跨域下载失败，服务端代理也无法访问 (${proxyDetail})。请手动下载文件后拖拽上传`);
 }
 
-async function readNdjsonStream(
-  res: Response,
-  onProgress: (detail: string) => void,
-): Promise<{ ok: boolean; data: Record<string, unknown> }> {
-  const reader = res.body!.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  let result: Record<string, unknown> = {};
-  let errorMsg: string | null = null;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop()!;
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const evt = JSON.parse(line);
-      if (evt.type === "progress") {
-        onProgress(`正在下载 (${evt.current}/${evt.total}): ${evt.filename}`);
-      } else if (evt.type === "result") {
-        result = evt;
-      } else if (evt.type === "error") {
-        errorMsg = evt.error;
-      }
-    }
-  }
-  if (errorMsg) return { ok: false, data: { error: errorMsg } };
-  return { ok: true, data: result };
-}
-
 export default function Home() {
   const [authState, setAuthState] = useState<"loading" | "need-password" | "authenticated">("loading");
   const [passwordInput, setPasswordInput] = useState("");
@@ -797,7 +765,6 @@ export default function Home() {
                             <StandaloneModuleRow
                               key={mod.id}
                               module={mod}
-                              collection={col}
                               token={token!}
                               onDeleteModule={handleDeleteModule}
                               onDeleteCollection={() => handleDeleteCollection(col.slug, col.title)}
@@ -909,9 +876,8 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-function StandaloneModuleRow({ module: mod, collection, token, onDeleteModule, onDeleteCollection, onRefresh }: {
+function StandaloneModuleRow({ module: mod, token, onDeleteModule, onDeleteCollection, onRefresh }: {
   module: Module;
-  collection: Collection;
   token: string;
   onDeleteModule: (id: string) => void;
   onDeleteCollection: () => void;
