@@ -4,7 +4,7 @@ import { getBackendDb, getBackendStore } from "@/lib/backend";
 import { generateToken, hashToken, getTokenPrefix } from "@/lib/auth";
 import { ensureSingleUser, getSingleUserToken } from "@/lib/single-user";
 import { parseWidgetMetadata, isEncrypted } from "@/lib/parser";
-import { assertAllowedContentLength, getMaxRemoteBytes, validateRemoteFetchUrl } from "@/lib/url-safety";
+import { assertAllowedContentLength, fetchRemoteUrl, getMaxRemoteBytes, validateRemoteFetchUrl } from "@/lib/url-safety";
 import { isAccessPasswordConfigured, requestHasValidAccessCookie } from "@/lib/access-password";
 import { canAddModules, canCreateCollection, normalizeVisibility } from "@/lib/policy";
 
@@ -35,7 +35,7 @@ async function downloadRemoteJs(rawUrl: string): Promise<{ buffer: Buffer; filen
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT);
   try {
-    const res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": "Forward" } });
+    const res = await fetchRemoteUrl(url, { signal: controller.signal, headers: { "User-Agent": "Forward" } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     assertAllowedContentLength(res.headers.get("content-length"), getMaxRemoteBytes());
     const buf = Buffer.from(await res.arrayBuffer());
@@ -67,7 +67,7 @@ async function downloadRemoteFile(rawUrl: string): Promise<{ buffer: Buffer; fil
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT);
   try {
-    const res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": "Forward" } });
+    const res = await fetchRemoteUrl(url, { signal: controller.signal, headers: { "User-Agent": "Forward" } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     assertAllowedContentLength(res.headers.get("content-length"), getMaxRemoteBytes());
     const buf = Buffer.from(await res.arrayBuffer());
@@ -120,7 +120,7 @@ async function downloadAndStoreIcon(
     const timeout = setTimeout(() => controller.abort(), 10_000);
     try {
       const safeIconUrl = validateRemoteFetchUrl(iconUrl);
-      const res = await fetch(safeIconUrl, { signal: controller.signal, headers: { "User-Agent": "Forward" } });
+      const res = await fetchRemoteUrl(safeIconUrl, { signal: controller.signal, headers: { "User-Agent": "Forward" } });
       if (!res.ok) return iconUrl;
       assertAllowedContentLength(res.headers.get("content-length"), getMaxRemoteBytes());
       const contentType = res.headers.get("content-type") || "image/jpeg";
@@ -130,6 +130,7 @@ async function downloadAndStoreIcon(
         : contentType.includes("svg") ? "svg"
         : "jpg";
       const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length > getMaxRemoteBytes()) throw new Error("Remote file exceeds size limit");
       const iconFilename = `_icon.${ext}`;
       const savedKey = await store.save(collectionId, iconFilename, buf);
       const actualKey = savedKey || iconFilename;

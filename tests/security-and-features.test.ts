@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { parseWidgetMetadata } from "../lib/parser";
-import { validateRemoteFetchUrl } from "../lib/url-safety";
+import { validateRemoteFetchUrl, fetchRemoteUrl } from "../lib/url-safety";
+import { verifyAdmin } from "../lib/admin-auth";
+import { NextRequest } from "next/server";
 import { hasValidAccessCookie, isAccessPasswordConfigured } from "../lib/access-password";
 import { resolveCollectionAlias } from "../lib/aliases";
 import { normalizeVisibility, canCreateCollection, canAddModules } from "../lib/policy";
@@ -50,6 +52,31 @@ describe("remote URL safety", () => {
     for (const url of blocked) {
       expect(() => validateRemoteFetchUrl(url), url).toThrow();
     }
+  });
+  it("blocks redirect hops to private/local targets", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 302, headers: { location: "http://127.0.0.1/admin" } }),
+    );
+
+    await expect(fetchRemoteUrl("https://example.com/widget.js")).rejects.toThrow("Private or local URLs are not allowed");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fetchMock.mockRestore();
+  });
+});
+
+describe("admin auth helpers", () => {
+  beforeEach(() => vi.unstubAllEnvs());
+
+  it("returns null only when admin authentication succeeds", async () => {
+    vi.stubEnv("ADMIN_PASSWORD", "admin-secret");
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("admin-secret"));
+    const cookie = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    const valid = new NextRequest("https://example.com/admin", { headers: { cookie: `fwh_admin=${cookie}` } });
+    const invalid = new NextRequest("https://example.com/admin");
+
+    expect(await verifyAdmin(valid)).toBeNull();
+    expect(await verifyAdmin(invalid)).toBeInstanceOf(Response);
   });
 });
 

@@ -15,8 +15,9 @@ export async function GET(
   const db = await getBackendDb();
   const collection = await db.prepare("SELECT * FROM collections WHERE slug = ?").get(slug) as Record<string, unknown> | undefined;
   if (!collection) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (collection.visibility === "private" && !(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (collection.visibility === "private") {
+    const denied = await verifyAdmin(request);
+    if (denied) return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const modules = await db.prepare(

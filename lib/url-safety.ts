@@ -30,10 +30,10 @@ function isLocalHostname(hostname: string): boolean {
   return ipv4 ? isPrivateIPv4(ipv4) : false;
 }
 
-export function validateRemoteFetchUrl(rawUrl: string): URL {
+export function validateRemoteFetchUrl(rawUrl: string | URL): URL {
   let url: URL;
   try {
-    url = new URL(rawUrl);
+    url = rawUrl instanceof URL ? new URL(rawUrl.toString()) : new URL(rawUrl);
   } catch {
     throw new Error("Invalid URL");
   }
@@ -47,6 +47,21 @@ export function validateRemoteFetchUrl(rawUrl: string): URL {
     throw new Error("URLs with embedded credentials are not allowed");
   }
   return url;
+}
+
+export async function fetchRemoteUrl(rawUrl: string | URL, init: RequestInit = {}, maxRedirects = 5): Promise<Response> {
+  let url = validateRemoteFetchUrl(rawUrl);
+  for (let redirects = 0; redirects <= maxRedirects; redirects++) {
+    const res = await fetch(url, { ...init, redirect: "manual" });
+    if (![301, 302, 303, 307, 308].includes(res.status)) return res;
+
+    const location = res.headers.get("location");
+    if (!location) return res;
+    if (redirects === maxRedirects) throw new Error("Too many redirects");
+
+    url = validateRemoteFetchUrl(new URL(location, url));
+  }
+  throw new Error("Too many redirects");
 }
 
 export function assertAllowedContentLength(contentLength: string | null, maxBytes = DEFAULT_MAX_BYTES) {

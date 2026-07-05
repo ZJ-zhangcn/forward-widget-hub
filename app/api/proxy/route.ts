@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAccessPasswordConfigured, requestHasValidAccessCookie } from "@/lib/access-password";
-import { assertAllowedContentLength, getMaxRemoteBytes, validateRemoteFetchUrl } from "@/lib/url-safety";
+import { assertAllowedContentLength, fetchRemoteUrl, getMaxRemoteBytes, validateRemoteFetchUrl } from "@/lib/url-safety";
 
 export async function GET(req: NextRequest) {
   if (isAccessPasswordConfigured() && !(await requestHasValidAccessCookie(req))) {
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(url, {
+    const res = await fetchRemoteUrl(url, {
       headers: { "User-Agent": "ForwardWidgetHub/1.0" },
       signal: AbortSignal.timeout(30000),
     });

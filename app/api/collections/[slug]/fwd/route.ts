@@ -26,8 +26,9 @@ export async function GET(
   const collectionSlug = alias?.targetSlug || slug;
   const collection = await db.prepare("SELECT * FROM collections WHERE slug = ?").get(collectionSlug) as Record<string, unknown> | undefined;
   if (!collection) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (collection.visibility === "private" && !(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (collection.visibility === "private") {
+    const denied = await verifyAdmin(request);
+    if (denied) return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const requestedSafe = request.nextUrl.searchParams.get("safe") === "1" || alias?.safe === true;
