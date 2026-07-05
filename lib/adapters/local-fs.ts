@@ -9,24 +9,26 @@ export function createLocalStore(): Store {
 
   fs.mkdirSync(MODULES_DIR, { recursive: true });
 
+  const collectionDir = (collectionId: string) => path.join(MODULES_DIR, safeFilename(collectionId, "collection"));
+
   return {
     async save(collectionId, filename, content) {
-      const dir = path.join(MODULES_DIR, collectionId);
+      const dir = collectionDir(collectionId);
       fs.mkdirSync(dir, { recursive: true });
       const safeName = safeFilename(filename);
       fs.writeFileSync(path.join(dir, safeName), content);
     },
     async read(collectionId, filename) {
-      const filePath = path.join(MODULES_DIR, collectionId, safeFilename(filename));
+      const filePath = path.join(collectionDir(collectionId), safeFilename(filename));
       if (!fs.existsSync(filePath)) return null;
       return fs.readFileSync(filePath);
     },
     async remove(collectionId, filename) {
-      const filePath = path.join(MODULES_DIR, collectionId, safeFilename(filename));
+      const filePath = path.join(collectionDir(collectionId), safeFilename(filename));
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     },
     async removeCollection(collectionId) {
-      const dir = path.join(MODULES_DIR, collectionId);
+      const dir = collectionDir(collectionId);
       if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
     },
   };

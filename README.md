@@ -17,6 +17,16 @@
 - **订阅链接** — 每个合集自动生成 `.fwd` 订阅链接，Forward App 可直接导入
 - **无需注册** — 首次上传自动生成管理令牌，凭链接即可管理
 
+### Fork 增强
+
+这个 fork 在原版基础上补了几类更适合自用/公开部署的能力：
+
+- **访问保护更完整**：启用 `ACCESS_PASSWORD` 后，上传、URL 转存和代理接口都会校验访问 Cookie/令牌，降低被公网滥用的风险。
+- **远程导入防护**：限制远程文件大小，阻止 `localhost`、内网 IP、link-local、非 HTTP(S) 协议和带账号密码的 URL，减少 SSRF 风险。
+- **合集可见性与配额**：支持 `public` / `unlisted` / `private`，并可用 `MAX_COLLECTIONS_PER_USER`、`MAX_MODULES_PER_COLLECTION` 控制单用户资源上限。
+- **后台维护工具**：管理员可做备份/恢复、同步预览、模块历史版本查看，便于迁移和回滚。
+- **镜像与部署**：新增 GHCR Docker 镜像发布和可选 Netcup VPS 自动部署 workflow。
+
 ## 部署方式
 
 支持两种部署方式，任选其一：
@@ -33,7 +43,7 @@
 
 点击下方按钮，按提示授权 Cloudflare 和 GitHub 账号即可完成部署，无需任何手动配置：
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/InchStudio/forward-widget-hub)
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ZJ-zhangcn/forward-widget-hub)
 
 > 部署过程会自动创建所需的 D1 数据库和 R2 存储桶，并初始化数据表。后续每次推送到 `main` 分支都会自动重新部署。
 
@@ -44,7 +54,7 @@
 #### 1. 克隆项目
 
 ```bash
-git clone https://github.com/InchStudio/forward-widget-hub.git
+git clone https://github.com/ZJ-zhangcn/forward-widget-hub.git
 cd forward-widget-hub
 ```
 
@@ -170,6 +180,25 @@ environment:
 **Cloudflare** — 在 Cloudflare Dashboard → Workers → Settings → Variables 中添加 `ADMIN_PASSWORD`。
 
 > `ADMIN_PASSWORD` 与 `ACCESS_PASSWORD` 相互独立，可以设置不同的密码。
+
+## 高级配置（可选）
+
+| 环境变量 | 作用 | 示例 |
+|---|---|---|
+| `MAX_REMOTE_FILE_BYTES` | URL 转存/代理允许下载的最大字节数，默认 5MB | `5242880` |
+| `MAX_COLLECTIONS_PER_USER` | 单个管理令牌最多创建多少合集 | `20` |
+| `MAX_MODULES_PER_COLLECTION` | 单个合集最多包含多少模块 | `100` |
+| `COLLECTION_ALIASES` | 为合集创建短别名、只包含/跳过指定模块 | 见下方 JSON |
+
+`COLLECTION_ALIASES` 示例：
+
+```json
+{
+  "my-widgets-safe": { "target": "原合集slug", "safe": true },
+  "my-widgets-one": { "target": "原合集slug", "only": "widget.id" },
+  "my-widgets-lite": { "target": "原合集slug", "skip": ["widget.to.skip"] }
+}
+```
 
 ## 使用方式
 

@@ -4,6 +4,7 @@ import { validateRemoteFetchUrl } from "../lib/url-safety";
 import { hasValidAccessCookie, isAccessPasswordConfigured } from "../lib/access-password";
 import { resolveCollectionAlias } from "../lib/aliases";
 import { normalizeVisibility, canCreateCollection, canAddModules } from "../lib/policy";
+import { safeFilename } from "../lib/file-safety";
 
 describe("WidgetMetadata parser", () => {
   it("parses common Forward widget metadata without executing code", () => {
@@ -90,6 +91,14 @@ describe("collection aliases", () => {
       safe: true,
       list: undefined,
     });
+  });
+});
+
+describe("file safety", () => {
+  it("sanitizes filenames and path-like identifiers", () => {
+    expect(safeFilename("../../etc/passwd", "widget.js")).toBe("passwd");
+    expect(safeFilename("..", "collection")).toBe("collection");
+    expect(safeFilename("my widget?.js", "widget.js")).toBe("my_widget_.js");
   });
 });
 
