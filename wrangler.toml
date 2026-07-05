@@ -17,3 +17,4 @@ bucket_name = "forward-widget-hub-storage"
 
 [vars]
 BACKEND = "cloudflare"
+PUBLIC_COLLECTION_SLUGS = "r9Bh1TOUzm"
