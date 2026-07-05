@@ -601,6 +601,10 @@ export default function Home() {
               </div>
               <h2 className="text-xl font-bold text-slate-900">管理入口</h2>
               <p className="text-sm text-slate-500">请输入密码以上传或管理模块</p>
+              <a href="/admin" className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 hover:underline">
+                <ExternalLink className="w-3 h-3" />
+                打开高级管理后台
+              </a>
             </div>
             <div className="space-y-3">
               <input
@@ -737,6 +741,10 @@ export default function Home() {
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900">我的合集</h2>
               <div className="flex items-center gap-2">
+                <a href="/admin" className="text-xs flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">
+                  <ExternalLink className="w-3 h-3" />
+                  高级后台
+                </a>
                 {manageUrl && <CopyButton text={manageUrl} label="复制管理链接" />}
                 <button onClick={handleLogout} className="text-xs flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors">
                   退出登录
