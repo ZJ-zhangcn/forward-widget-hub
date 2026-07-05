@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { getBackendDb, getBackendStore } from "@/lib/backend";
 import { generateToken, hashToken, getTokenPrefix } from "@/lib/auth";
+import { ensureSingleUser, getSingleUserToken } from "@/lib/single-user";
 import { parseWidgetMetadata, isEncrypted } from "@/lib/parser";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -176,7 +177,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const files = formData.getAll("files") as File[];
     const remoteUrl = formData.get("url") as string | null;
-    const token = formData.get("token") as string | null;
+    let token = formData.get("token") as string | null;
     const collectionTitle = (formData.get("title") as string) || "My Widgets";
     const collectionDesc = (formData.get("description") as string) || "";
     const collectionIcon = (formData.get("icon") as string) || "";
@@ -208,6 +209,12 @@ export async function POST(request: NextRequest) {
 
     const db = await getBackendDb();
     const store = await getBackendStore();
+    const singleUserToken = getSingleUserToken();
+    if (!token && singleUserToken) {
+      await ensureSingleUser(singleUserToken);
+      token = singleUserToken;
+    }
+
     let userId: string;
     let rawToken: string;
     let isNewUser = false;

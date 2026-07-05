@@ -126,6 +126,12 @@ export default function Home() {
   useEffect(() => {
     const savedToken = localStorage.getItem("fwh_token");
     fetch("/api/auth").then((r) => r.json()).then(async (data) => {
+      const ownerToken = typeof data.ownerToken === "string" ? data.ownerToken : null;
+      if (ownerToken) {
+        localStorage.setItem("fwh_token", ownerToken);
+        setToken(ownerToken);
+      }
+
       if (!data.required || data.authenticated) {
         setAuthState("authenticated");
       } else if (savedToken) {
@@ -154,7 +160,12 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: passwordInput }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        if (typeof data.ownerToken === "string") {
+          localStorage.setItem("fwh_token", data.ownerToken);
+          setToken(data.ownerToken);
+        }
         setAuthState("authenticated");
       } else {
         setPasswordError("密码错误");
@@ -183,7 +194,7 @@ export default function Home() {
 
   useEffect(() => {
     if (token) fetchCollections();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, fetchCollections]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();

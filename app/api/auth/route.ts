@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ensureSingleUser, getSingleUserToken } from "@/lib/single-user";
 
 async function sha256(text: string): Promise<string> {
   const data = new TextEncoder().encode(text);
@@ -42,19 +43,32 @@ function clearFailures(ip: string) {
 
 export async function GET(req: NextRequest) {
   const password = process.env.ACCESS_PASSWORD;
-  if (!password) return NextResponse.json({ required: false });
+  const ownerToken = getSingleUserToken();
+
+  if (!password) {
+    if (ownerToken) await ensureSingleUser(ownerToken);
+    return NextResponse.json({ required: false, ownerToken });
+  }
 
   const cookie = req.cookies.get("fwh_access")?.value;
   const hash = await sha256(password);
+  const authenticated = cookie === hash;
+  if (authenticated && ownerToken) await ensureSingleUser(ownerToken);
+
   return NextResponse.json({
     required: true,
-    authenticated: cookie === hash,
+    authenticated,
+    ...(authenticated && ownerToken ? { ownerToken } : {}),
   });
 }
 
 export async function POST(req: NextRequest) {
   const password = process.env.ACCESS_PASSWORD;
-  if (!password) return NextResponse.json({ ok: true });
+  if (!password) {
+    const ownerToken = getSingleUserToken();
+    if (ownerToken) await ensureSingleUser(ownerToken);
+    return NextResponse.json({ ok: true, ownerToken });
+  }
 
   const ip = getClientIp(req);
   const check = checkBruteForce(ip);
@@ -72,8 +86,11 @@ export async function POST(req: NextRequest) {
   }
 
   clearFailures(ip);
+  const ownerToken = getSingleUserToken();
+  if (ownerToken) await ensureSingleUser(ownerToken);
+
   const hash = await sha256(password);
-  const res = NextResponse.json({ ok: true });
+  const res = NextResponse.json({ ok: true, ...(ownerToken ? { ownerToken } : {}) });
   res.cookies.set("fwh_access", hash, {
     httpOnly: true,
     secure: req.nextUrl.protocol === "https:",

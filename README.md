@@ -127,6 +127,35 @@ environment:
 
 > 密码保护范围：首页上传界面和管理接口。模块下载链接、订阅链接等公开接口不受影响。
 
+## 单用户私有模式（可选）
+
+如果这是你自己使用的私有部署，可以启用单用户模式。启用后，用户在任意新设备输入 `ACCESS_PASSWORD` 登录成功，前端会自动写入同一个固定管理令牌，并立即显示同一批「我的合集」。
+
+**Docker** — 在 `docker-compose.yml` 的 `environment` 中添加：
+
+```yaml
+environment:
+  - ACCESS_PASSWORD=你的访问密码
+  - SINGLE_USER_MODE=true
+  - OWNER_TOKEN=fwt_请换成一串足够长的随机值
+```
+
+建议用下面的命令生成 `OWNER_TOKEN`：
+
+```bash
+python3 - <<'PY'
+import secrets
+print('fwt_' + secrets.token_urlsafe(32))
+PY
+```
+
+说明：
+
+- `OWNER_TOKEN` 是你的固定管理令牌，**不要公开**。
+- 默认会把已有合集归到这个单用户下，方便旧数据在新设备登录后可见。
+- 如果不想自动归并旧合集，可设置 `SINGLE_USER_CLAIM_EXISTING=false`。
+- 仍建议同时启用 `ADMIN_PASSWORD`，方便在 `/admin` 做兜底管理。
+
 ## 管理后台（可选）
 
 设置 `ADMIN_PASSWORD` 环境变量即可启用管理后台，访问 `/admin` 登录后可查看和删除所有用户上传的合集。

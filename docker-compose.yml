@@ -7,4 +7,13 @@ services:
       - ./data:/data
     environment:
       - SITE_URL=http://localhost:3000
+      # Optional: protect upload/manage pages with a password.
+      # - ACCESS_PASSWORD=change-me
+      # Optional: single-user private mode. After password login on any device,
+      # the UI uses this fixed owner token to show the same collections.
+      # Generate with: python3 -c "import secrets; print('fwt_' + secrets.token_urlsafe(32))"
+      # - SINGLE_USER_MODE=true
+      # - OWNER_TOKEN=fwt_replace_with_a_long_random_value
+      # Optional: /admin dashboard password.
+      # - ADMIN_PASSWORD=change-me-too
     restart: unless-stopped
