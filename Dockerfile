@@ -1,4 +1,4 @@
-FROM node:22-alpine AS base
+FROM public.ecr.aws/docker/library/node:22-alpine AS base
 
 FROM base AS deps
 WORKDIR /app
