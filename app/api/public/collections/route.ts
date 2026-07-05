@@ -26,6 +26,10 @@ function getConfiguredSlugs(): string[] {
     .filter((slug, index, all) => all.indexOf(slug) === index);
 }
 
+function shouldShowAll(slugs: string[]): boolean {
+  return slugs.length === 0 || slugs.some((slug) => slug.toLowerCase() === "all" || slug === "*");
+}
+
 function getSiteUrl(request: NextRequest): string {
   const proto = request.headers.get("x-forwarded-proto") || "https";
   const host = request.headers.get("host") || request.nextUrl.host;
@@ -33,22 +37,27 @@ function getSiteUrl(request: NextRequest): string {
 }
 
 export async function GET(request: NextRequest) {
-  const slugs = getConfiguredSlugs();
-  if (slugs.length === 0) {
-    return NextResponse.json({ collections: [], configured: false });
-  }
-
+  const configuredSlugs = getConfiguredSlugs();
+  const showAll = shouldShowAll(configuredSlugs);
   const db = await getBackendDb();
   const siteUrl = getSiteUrl(request);
   const collections = [];
 
-  for (const slug of slugs) {
-    const collection = await db.prepare("SELECT * FROM collections WHERE slug = ?").get(slug) as Record<string, unknown> | undefined;
-    if (!collection) continue;
+  const collectionRows = showAll
+    ? await db.prepare(
+      "SELECT c.* FROM collections c WHERE EXISTS (SELECT 1 FROM modules m WHERE m.collection_id = c.id) ORDER BY c.updated_at DESC, c.created_at DESC"
+    ).all<Record<string, unknown>>()
+    : await Promise.all(
+      configuredSlugs.map((slug) =>
+        db.prepare("SELECT * FROM collections WHERE slug = ?").get(slug) as Promise<Record<string, unknown> | undefined>
+      )
+    );
 
+  for (const collection of collectionRows.filter(Boolean) as Record<string, unknown>[]) {
     const modules = await db.prepare(
       "SELECT id, filename, widget_id, title, description, version, author, file_size, is_encrypted, source_url, created_at FROM modules WHERE collection_id = ? ORDER BY created_at"
     ).all<ModuleRow>(collection.id);
+    if (modules.length === 0) continue;
 
     collections.push({
       ...collection,
@@ -59,7 +68,11 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json(
-    { collections, configured: true },
+    {
+      collections,
+      configured: configuredSlugs.length > 0,
+      mode: showAll ? "all" : "configured",
+    },
     { headers: { "Cache-Control": "no-store" } }
   );
 }
