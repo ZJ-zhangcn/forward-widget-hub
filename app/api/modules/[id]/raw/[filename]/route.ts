@@ -7,10 +7,10 @@ interface ModuleRow { id: string; collection_id: string; filename: string; is_en
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string; filename: string }> }
 ) {
-  // Public raw module endpoint for .fwd imports. Do not require a specific
-  // User-Agent; Forward import/fetch clients vary by platform/runtime.
+  // Compatibility endpoint: Forward validates module info more reliably when
+  // the widget URL path ends with a .js filename instead of a bare /raw path.
   const { id } = await params;
   const db = await getBackendDb();
   const mod = await db.prepare("SELECT id, collection_id, filename, is_encrypted, oss_key FROM modules WHERE id = ?").get(id) as ModuleRow | undefined;
@@ -18,13 +18,6 @@ export async function GET(
 
   const store = await getBackendStore();
   const storageKey = mod.oss_key || mod.filename;
-  const cdnUrl = store.getUrl?.(mod.collection_id, storageKey);
-
-  if (cdnUrl) {
-    return NextResponse.redirect(cdnUrl, 302);
-  }
-
-  // Fallback: serve directly for backends without CDN
   const content = await store.read(mod.collection_id, storageKey);
   if (!content) return NextResponse.json({ error: "File not found" }, { status: 404 });
 
@@ -34,9 +27,9 @@ export async function GET(
     headers: {
       "Content-Type": contentType,
       "Content-Disposition": `inline; filename="${encodeURIComponent(mod.filename)}"; filename*=UTF-8''${encodeURIComponent(mod.filename)}`,
-      // Bare compatibility endpoint is less cacheable because the URL does not
-      // carry updated_at; keep a short edge/browser TTL.
-      "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
+      // Versioned .js URL path from the .fwd manifest makes this safe for
+      // long CDN/browser caching; updates change the filename segment.
+      "Cache-Control": "public, max-age=31536000, immutable",
     },
   });
 }
