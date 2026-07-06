@@ -41,6 +41,8 @@ interface Collection {
   icon_url: string;
   user_id: string;
   source_url: string;
+  visibility: "public" | "unlisted" | "private";
+  show_on_home: number;
   created_at: number;
   updated_at: number;
   modules: Module[];
@@ -52,6 +54,8 @@ interface CollectionDraft {
   slug: string;
   icon_url: string;
   source_url: string;
+  visibility: "public" | "unlisted" | "private";
+  show_on_home: boolean;
 }
 
 function InlineCopy({ text, title }: { text: string; title?: string }) {
@@ -66,6 +70,12 @@ function InlineCopy({ text, title }: { text: string; title?: string }) {
     </button>
   );
 }
+
+const visibilityLabels: Record<Collection["visibility"], string> = {
+  public: "公开",
+  unlisted: "隐藏链接",
+  private: "私有",
+};
 
 export default function AdminPage() {
   const [authState, setAuthState] = useState<
@@ -156,6 +166,8 @@ export default function AdminPage() {
         slug: col.slug || "",
         icon_url: col.icon_url || "",
         source_url: col.source_url || "",
+        visibility: col.visibility || "public",
+        show_on_home: col.show_on_home !== 0,
       },
     }));
     setEditingCollectionId(col.id);
@@ -175,6 +187,8 @@ export default function AdminPage() {
           slug: draft.slug.trim(),
           icon_url: draft.icon_url.trim(),
           source_url: draft.source_url.trim(),
+          visibility: draft.visibility,
+          show_on_home: draft.show_on_home,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -501,6 +515,27 @@ export default function AdminPage() {
                             className="px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
                           />
                         </div>
+                        <div className="grid gap-2 md:grid-cols-2">
+                          <select
+                            value={collectionDrafts[col.id]?.visibility || "public"}
+                            onChange={(e) => updateDraft(col.id, { visibility: e.target.value as Collection["visibility"] })}
+                            className="px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            title="访问权限"
+                          >
+                            <option value="public">公开：可出现在首页/公开 API</option>
+                            <option value="unlisted">隐藏链接：仅知道链接可访问</option>
+                            <option value="private">私有：仅管理员可访问</option>
+                          </select>
+                          <label className="px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white flex items-center justify-between gap-3 cursor-pointer">
+                            <span className="text-slate-600">在主页显示</span>
+                            <input
+                              type="checkbox"
+                              checked={collectionDrafts[col.id]?.show_on_home ?? true}
+                              onChange={(e) => updateDraft(col.id, { show_on_home: e.target.checked })}
+                              className="h-4 w-4 accent-orange-600"
+                            />
+                          </label>
+                        </div>
                       </div>
                     ) : (
                       <div>
@@ -512,6 +547,14 @@ export default function AdminPage() {
                             {col.description}
                           </p>
                         )}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          <span className="text-[11px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+                            {visibilityLabels[col.visibility || "public"]}
+                          </span>
+                          <span className={`text-[11px] px-1.5 py-0.5 rounded ${col.show_on_home === 0 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>
+                            {col.show_on_home === 0 ? "首页隐藏" : "首页显示"}
+                          </span>
+                        </div>
                         <p className="text-xs text-slate-400 mt-0.5">
                           slug: {col.slug} · ID: {col.id} · 用户: {col.user_id.slice(0, 8)}... ·
                           更新于{" "}

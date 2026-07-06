@@ -45,11 +45,11 @@ export async function GET(request: NextRequest) {
 
   const collectionRows = showAll
     ? await db.prepare(
-      "SELECT c.* FROM collections c WHERE COALESCE(c.visibility, 'public') = 'public' AND EXISTS (SELECT 1 FROM modules m WHERE m.collection_id = c.id) ORDER BY c.updated_at DESC, c.created_at DESC"
+      "SELECT c.* FROM collections c WHERE COALESCE(c.visibility, 'public') = 'public' AND COALESCE(c.show_on_home, 1) = 1 AND EXISTS (SELECT 1 FROM modules m WHERE m.collection_id = c.id) ORDER BY c.updated_at DESC, c.created_at DESC"
     ).all<Record<string, unknown>>()
     : await Promise.all(
       configuredSlugs.map((slug) =>
-        db.prepare("SELECT * FROM collections WHERE slug = ?").get(slug) as Promise<Record<string, unknown> | undefined>
+        db.prepare("SELECT * FROM collections WHERE slug = ? AND COALESCE(visibility, 'public') <> 'private' AND COALESCE(show_on_home, 1) = 1").get(slug) as Promise<Record<string, unknown> | undefined>
       )
     );
 

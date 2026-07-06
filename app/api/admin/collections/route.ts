@@ -10,6 +10,8 @@ interface CollectionRow {
   icon_url: string;
   user_id: string;
   source_url: string;
+  visibility: string;
+  show_on_home: number;
   created_at: number;
   updated_at: number;
 }
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
 
   const collections = await db
     .prepare(
-      "SELECT id, slug, title, description, icon_url, user_id, source_url, created_at, updated_at FROM collections ORDER BY updated_at DESC"
+      "SELECT id, slug, title, description, icon_url, user_id, source_url, visibility, show_on_home, created_at, updated_at FROM collections ORDER BY updated_at DESC"
     )
     .all<CollectionRow>();
 

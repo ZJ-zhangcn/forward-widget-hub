@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBackendDb, getBackendStore } from "@/lib/backend";
 import { verifyAdmin } from "@/lib/admin-auth";
-import { normalizeVisibility } from "@/lib/policy";
+import { normalizeShowOnHome, normalizeVisibility } from "@/lib/policy";
 
 function normalizeOptional(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -24,6 +24,7 @@ export async function PATCH(
     icon_url?: string;
     source_url?: string;
     visibility?: string;
+    show_on_home?: boolean | number | string;
   } | null;
 
   if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
@@ -33,7 +34,6 @@ export async function PATCH(
   const description = typeof body.description === "string" ? body.description.trim() : "";
   const iconUrl = normalizeOptional(body.icon_url);
   const sourceUrl = normalizeOptional(body.source_url);
-  const visibility = normalizeVisibility(body.visibility);
 
   if (!title) return NextResponse.json({ error: "Title required" }, { status: 400 });
   if (!slug) return NextResponse.json({ error: "Slug required" }, { status: 400 });
@@ -43,10 +43,13 @@ export async function PATCH(
 
   const db = await getBackendDb();
   const collection = (await db
-    .prepare("SELECT id, slug FROM collections WHERE id = ?")
-    .get(id)) as { id: string; slug: string } | undefined;
+    .prepare("SELECT id, slug, visibility, show_on_home FROM collections WHERE id = ?")
+    .get(id)) as { id: string; slug: string; visibility?: string | null; show_on_home?: number | null } | undefined;
 
   if (!collection) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const visibility = normalizeVisibility(body.visibility ?? collection.visibility ?? "public");
+  const showOnHome = normalizeShowOnHome(body.show_on_home, Number(collection.show_on_home ?? 1));
 
   const duplicate = (await db
     .prepare("SELECT id FROM collections WHERE slug = ? AND id <> ?")
@@ -55,10 +58,10 @@ export async function PATCH(
   if (duplicate) return NextResponse.json({ error: "Slug already exists" }, { status: 409 });
 
   await db.prepare(
-    "UPDATE collections SET title = ?, description = ?, slug = ?, icon_url = ?, source_url = ?, visibility = ?, updated_at = unixepoch() WHERE id = ?"
-  ).run(title, description, slug, iconUrl || "", sourceUrl, visibility, id);
+    "UPDATE collections SET title = ?, description = ?, slug = ?, icon_url = ?, source_url = ?, visibility = ?, show_on_home = ?, updated_at = unixepoch() WHERE id = ?"
+  ).run(title, description, slug, iconUrl || "", sourceUrl, visibility, showOnHome, id);
 
-  return NextResponse.json({ success: true, collection: { id, title, description, slug, icon_url: iconUrl || "", source_url: sourceUrl, visibility } });
+  return NextResponse.json({ success: true, collection: { id, title, description, slug, icon_url: iconUrl || "", source_url: sourceUrl, visibility, show_on_home: showOnHome } });
 }
 
 export async function DELETE(

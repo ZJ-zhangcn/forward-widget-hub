@@ -5,7 +5,7 @@ import { verifyAdmin } from "../lib/admin-auth";
 import { NextRequest } from "next/server";
 import { hasValidAccessCookie, isAccessPasswordConfigured } from "../lib/access-password";
 import { resolveCollectionAlias } from "../lib/aliases";
-import { normalizeVisibility, canCreateCollection, canAddModules } from "../lib/policy";
+import { normalizeShowOnHome, normalizeVisibility, canCreateCollection, canAddModules } from "../lib/policy";
 import { safeFilename } from "../lib/file-safety";
 
 describe("WidgetMetadata parser", () => {
@@ -137,6 +137,15 @@ describe("policy helpers", () => {
     expect(normalizeVisibility("unlisted")).toBe("unlisted");
     expect(normalizeVisibility("public")).toBe("public");
     expect(normalizeVisibility("bad")).toBe("public");
+  });
+
+  it("normalizes home page collection display flag", () => {
+    expect(normalizeShowOnHome(false)).toBe(0);
+    expect(normalizeShowOnHome("off")).toBe(0);
+    expect(normalizeShowOnHome("0")).toBe(0);
+    expect(normalizeShowOnHome(true)).toBe(1);
+    expect(normalizeShowOnHome("yes")).toBe(1);
+    expect(normalizeShowOnHome(undefined, 0)).toBe(0);
   });
 
   it("enforces optional collection and module quotas", () => {

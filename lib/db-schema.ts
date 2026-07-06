@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS collections (
   icon_url TEXT DEFAULT '',
   source_url TEXT,
   visibility TEXT DEFAULT 'public',
+  show_on_home INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER DEFAULT (unixepoch()),
   updated_at INTEGER DEFAULT (unixepoch()),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -69,6 +70,7 @@ export const MIGRATIONS = [
   `ALTER TABLE modules ADD COLUMN source_url TEXT;`,
   `ALTER TABLE modules ADD COLUMN oss_key TEXT;`,
   `ALTER TABLE collections ADD COLUMN visibility TEXT DEFAULT 'public';`,
+  `ALTER TABLE collections ADD COLUMN show_on_home INTEGER NOT NULL DEFAULT 1;`,
   `CREATE TABLE IF NOT EXISTS module_versions (id TEXT PRIMARY KEY, module_id TEXT NOT NULL, collection_id TEXT NOT NULL, filename TEXT NOT NULL, title TEXT, version TEXT, file_size INTEGER DEFAULT 0, content_base64 TEXT NOT NULL, created_at INTEGER DEFAULT (unixepoch()), FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE, FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE);`,
   `CREATE INDEX IF NOT EXISTS idx_module_versions_module ON module_versions(module_id, created_at DESC);`,
 ];

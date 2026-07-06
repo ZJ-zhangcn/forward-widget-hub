@@ -69,9 +69,9 @@ export async function POST(request: NextRequest) {
   }
 
   for (const c of collections) {
-    await db.prepare(`INSERT OR REPLACE INTO collections (id, user_id, slug, title, description, icon_url, source_url, visibility, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      c.id, c.user_id, c.slug, c.title, c.description || "", c.icon_url || "", c.source_url || null, c.visibility || "public", c.created_at || Math.floor(Date.now() / 1000), c.updated_at || Math.floor(Date.now() / 1000)
+    await db.prepare(`INSERT OR REPLACE INTO collections (id, user_id, slug, title, description, icon_url, source_url, visibility, show_on_home, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      c.id, c.user_id, c.slug, c.title, c.description || "", c.icon_url || "", c.source_url || null, c.visibility || "public", c.show_on_home === 0 ? 0 : 1, c.created_at || Math.floor(Date.now() / 1000), c.updated_at || Math.floor(Date.now() / 1000)
     );
   }
 

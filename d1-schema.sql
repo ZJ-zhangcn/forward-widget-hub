@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS collections (
   icon_url TEXT DEFAULT '',
   source_url TEXT,
   visibility TEXT DEFAULT 'public',
+  show_on_home INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER DEFAULT (unixepoch()),
   updated_at INTEGER DEFAULT (unixepoch()),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
