@@ -46,6 +46,7 @@ interface Module {
 interface Collection {
   id: string; slug: string; title: string; description: string; icon_url: string;
   fwdUrl: string; pageUrl: string; modules: Module[]; source_url: string | null;
+  show_on_home?: number;
 }
 
 async function fetchWithProxy(url: string): Promise<Response> {
@@ -731,8 +732,9 @@ export default function Home() {
             )}
 
             {(() => {
-              const standaloneCollections = collections.filter((c) => c.modules.length <= 1 && !c.source_url);
-              const multiCollections = collections.filter((c) => c.modules.length > 1 || !!c.source_url);
+              const homeCollections = collections.filter((c) => c.show_on_home !== 0);
+              const standaloneCollections = homeCollections.filter((c) => c.modules.length <= 1 && !c.source_url);
+              const multiCollections = homeCollections.filter((c) => c.modules.length > 1 || !!c.source_url);
               return (
                 <>
                   {multiCollections.map((col) => (

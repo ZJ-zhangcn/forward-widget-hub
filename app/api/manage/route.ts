@@ -21,7 +21,9 @@ export async function GET(request: NextRequest) {
   if (!auth) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
   const db = await getBackendDb();
-  const collections = await db.prepare("SELECT * FROM collections WHERE user_id = ? ORDER BY created_at DESC").all(auth.userId);
+  const collections = await db
+    .prepare("SELECT * FROM collections WHERE user_id = ? AND COALESCE(show_on_home, 1) = 1 ORDER BY created_at DESC")
+    .all(auth.userId);
 
   const proto = request.headers.get("x-forwarded-proto") || "https";
   const host = request.headers.get("host") || request.nextUrl.host;

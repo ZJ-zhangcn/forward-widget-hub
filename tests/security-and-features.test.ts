@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
 import { parseWidgetMetadata } from "../lib/parser";
 import { validateRemoteFetchUrl, fetchRemoteUrl } from "../lib/url-safety";
 import { verifyAdmin } from "../lib/admin-auth";
@@ -146,6 +147,11 @@ describe("policy helpers", () => {
     expect(normalizeShowOnHome(true)).toBe(1);
     expect(normalizeShowOnHome("yes")).toBe(1);
     expect(normalizeShowOnHome(undefined, 0)).toBe(0);
+  });
+
+  it("keeps hidden collections out of the homepage management list", () => {
+    const source = readFileSync(new URL("../app/api/manage/route.ts", import.meta.url), "utf8");
+    expect(source).toContain("COALESCE(show_on_home, 1) = 1");
   });
 
   it("enforces optional collection and module quotas", () => {
