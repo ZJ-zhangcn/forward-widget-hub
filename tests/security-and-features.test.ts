@@ -154,6 +154,14 @@ describe("policy helpers", () => {
     expect(source).toContain("COALESCE(show_on_home, 1) = 1");
   });
 
+  it("preserves icon URLs for client-side loading instead of server-side fetching", () => {
+    const source = readFileSync(new URL("../app/api/upload/route.ts", import.meta.url), "utf8");
+    expect(source).toContain("function directIconUrl");
+    expect(source).toContain("directIconUrl(fwd.icon)");
+    expect(source).not.toContain("downloadAndStoreIcon");
+    expect(source).not.toContain("validateRemoteFetchUrl(iconUrl)");
+  });
+
   it("enforces optional collection and module quotas", () => {
     vi.stubEnv("MAX_COLLECTIONS_PER_USER", "2");
     vi.stubEnv("MAX_MODULES_PER_COLLECTION", "3");

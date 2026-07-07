@@ -107,41 +107,11 @@ function createProgressStream(
   });
 }
 
-async function downloadAndStoreIcon(
-  iconUrl: string,
-  collectionId: string,
-  slug: string,
-  siteUrl: string,
-  store: Awaited<ReturnType<typeof getBackendStore>>,
-): Promise<string> {
-  if (!iconUrl) return "";
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10_000);
-    try {
-      const safeIconUrl = validateRemoteFetchUrl(iconUrl);
-      const res = await fetchRemoteUrl(safeIconUrl, { signal: controller.signal, headers: { "User-Agent": "Forward" } });
-      if (!res.ok) return iconUrl;
-      assertAllowedContentLength(res.headers.get("content-length"), getMaxRemoteBytes());
-      const contentType = res.headers.get("content-type") || "image/jpeg";
-      const ext = contentType.includes("png") ? "png"
-        : contentType.includes("gif") ? "gif"
-        : contentType.includes("webp") ? "webp"
-        : contentType.includes("svg") ? "svg"
-        : "jpg";
-      const buf = Buffer.from(await res.arrayBuffer());
-      if (buf.length > getMaxRemoteBytes()) throw new Error("Remote file exceeds size limit");
-      const iconFilename = `_icon.${ext}`;
-      const savedKey = await store.save(collectionId, iconFilename, buf);
-      const actualKey = savedKey || iconFilename;
-      const cdnUrl = store.getUrl?.(collectionId, actualKey);
-      return cdnUrl || `${siteUrl}/api/collections/${slug}/icon`;
-    } finally {
-      clearTimeout(timeout);
-    }
-  } catch {
-    return iconUrl; // fallback to original URL
-  }
+function directIconUrl(iconUrl: string | undefined | null): string {
+  // Icon URLs are rendered by the user's current device, not fetched by this
+  // server. This deliberately allows LAN / .local / private-host icons to work
+  // when the user's browser or Forward device can reach them.
+  return typeof iconUrl === "string" ? iconUrl.trim() : "";
 }
 
 async function downloadAndStoreWidget(
@@ -288,7 +258,7 @@ export async function POST(request: NextRequest) {
         await ensureCanCreateCollection(db, userId);
         const collectionId = nanoid();
         const slug = nanoid(10);
-        const iconUrl = fwd.icon ? await downloadAndStoreIcon(fwd.icon, collectionId, slug, siteUrl, store) : "";
+        const iconUrl = directIconUrl(fwd.icon);
         await db.prepare(
           "INSERT INTO collections (id, user_id, slug, title, description, icon_url, source_url, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         ).run(collectionId, userId, slug, fwd.title || downloaded.filename, fwd.description || "", iconUrl, remoteUrl, visibility);
@@ -360,7 +330,7 @@ export async function POST(request: NextRequest) {
           await ensureCanCreateCollection(db, userId);
           const collectionId = nanoid();
           const slug = nanoid(10);
-          const iconUrl = fwd.icon ? await downloadAndStoreIcon(fwd.icon, collectionId, slug, siteUrl, store) : "";
+          const iconUrl = directIconUrl(fwd.icon);
           await db.prepare(
             "INSERT INTO collections (id, user_id, slug, title, description, icon_url, source_url, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
           ).run(collectionId, userId, slug, fwd.title || file.name, fwd.description || "", iconUrl, sourceUrl || null, visibility);
@@ -421,8 +391,7 @@ export async function POST(request: NextRequest) {
 
       // Update collection metadata if provided
       if (collectionTitle) {
-        const storedIcon = collectionIcon ? await downloadAndStoreIcon(collectionIcon, collectionId, col.slug, siteUrl, store) : collectionIcon;
-        await db.prepare("UPDATE collections SET title = ?, description = ?, icon_url = ?, source_url = COALESCE(?, source_url), updated_at = unixepoch() WHERE id = ?").run(collectionTitle, collectionDesc, storedIcon, sourceUrl, collectionId);
+        await db.prepare("UPDATE collections SET title = ?, description = ?, icon_url = ?, source_url = COALESCE(?, source_url), updated_at = unixepoch() WHERE id = ?").run(collectionTitle, collectionDesc, directIconUrl(collectionIcon), sourceUrl, collectionId);
       }
 
       // Get existing modules for matching
