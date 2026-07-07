@@ -162,6 +162,14 @@ describe("policy helpers", () => {
     expect(source).not.toContain("validateRemoteFetchUrl(iconUrl)");
   });
 
+  it("hardens light theme text contrast for small slate labels", () => {
+    const source = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+    expect(source).toContain("html:not(.dark) .text-slate-400");
+    expect(source).toContain("html:not(.dark) .text-slate-500");
+    expect(source).toContain("--muted-foreground: oklch(0.42 0.035 257)");
+    expect(source).toContain("input::placeholder");
+  });
+
   it("enforces optional collection and module quotas", () => {
     vi.stubEnv("MAX_COLLECTIONS_PER_USER", "2");
     vi.stubEnv("MAX_MODULES_PER_COLLECTION", "3");

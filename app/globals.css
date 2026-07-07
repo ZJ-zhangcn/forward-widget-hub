@@ -125,5 +125,40 @@
   }
   html {
     @apply font-sans;
+    color-scheme: light;
   }
+  html.dark {
+    color-scheme: dark;
+  }
+}
+
+/*
+ * The app has many hand-authored Tailwind color utilities from the original
+ * light UI. In light mode, slate-300/400/500 and muted text are too pale for
+ * the small labels, metadata, buttons and placeholders used across the hub.
+ * Harden those low-contrast text utilities globally without changing dark mode.
+ */
+html:not(.dark) {
+  --muted-foreground: oklch(0.42 0.035 257);
+  --ring: oklch(0.55 0.075 257);
+}
+
+html:not(.dark) .text-slate-300,
+html:not(.dark) .text-slate-400 {
+  color: oklch(0.45 0.04 257) !important;
+}
+
+html:not(.dark) .text-slate-500 {
+  color: oklch(0.36 0.045 257) !important;
+}
+
+html:not(.dark) .text-slate-600 {
+  color: oklch(0.29 0.045 257) !important;
+}
+
+html:not(.dark) .placeholder\:text-slate-400::placeholder,
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
+  color: oklch(0.45 0.04 257) !important;
+  opacity: 1;
 }
