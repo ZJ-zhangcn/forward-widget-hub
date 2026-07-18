@@ -2,9 +2,19 @@
 
 自托管的 [Forward App](https://apps.apple.com/app/id6503940939) 模块托管平台。上传 `.js` 小组件或 `.fwd` 订阅文件，自动生成可在 Forward App 中导入的订阅链接。
 
-**在线示例：** https://forward-widget-hub.danmu.workers.dev
+**在线示例（上游/公共演示）：** https://forward-widget-hub.danmu.workers.dev  
+**自用部署：** https://fwd.942645.xyz
 
 > **注意：** 示例站仅供体验和测试，请勿将其作为正式使用。站内内容随时可能被清空或删除，请自行部署后使用。
+
+
+## 本 Fork 说明
+
+| 项 | 说明 |
+|---|---|
+| 仓库 | [`ZJ-zhangcn/forward-widget-hub`](https://github.com/ZJ-zhangcn/forward-widget-hub) |
+| 上游 | [`InchStudio/forward-widget-hub`](https://github.com/InchStudio/forward-widget-hub) |
+| 分支 | 当前为 **`feat/single-user-mode`**：单用户私有模式实验/特性分支。日常部署优先看 `main`。 |
 
 ## 功能特性
 
